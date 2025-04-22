@@ -660,9 +660,16 @@ class ParticleFilter(InferenceModule):
         self.particles for the list of particles.
         """
         self.particles = []
-        "*** YOUR CODE HERE ***"
-        raiseNotDefined()
-        "*** END YOUR CODE HERE ***"
+
+       # num legal pos
+        num_pos = len(self.legalPositions)
+        
+        # particle distr
+        for i in range(self.numParticles):
+            # cycle through legal pos
+            pos_index = i % num_pos
+            # add to particle list
+            self.particles.append(self.legalPositions[pos_index])
 
     def getBeliefDistribution(self):
         """
@@ -672,9 +679,16 @@ class ParticleFilter(InferenceModule):
 
         This function should return a normalized distribution.
         """
-        "*** YOUR CODE HERE ***"
-        raiseNotDefined()
-        "*** END YOUR CODE HERE ***"
+        # initialize belief
+        belief_dist = DiscreteDistribution()
+        
+        # freq count
+        for particle in self.particles:
+            belief_dist[particle] += 1
+        # normalize
+        belief_dist.normalize()
+        
+        return belief_dist
     
     ########### ########### ###########
     ########### QUESTION 10 ###########
@@ -692,9 +706,37 @@ class ParticleFilter(InferenceModule):
         be reinitialized by calling initializeUniformly. The total method of
         the DiscreteDistribution may be useful.
         """
-        "*** YOUR CODE HERE ***"
-        raiseNotDefined()
-        "*** END YOUR CODE HERE ***"
+        # get pacman pos and jail pos
+        pacmanPos = gameState.getPacmanPosition()
+        jailPos = self.getJailPosition()
+    
+        # initialize weight dist
+        weight_dist = DiscreteDistribution()
+        
+        for particle in self.particles:
+            # calc prob of observation
+            weight = self.getObservationProb(observation, pacmanPos, particle, jailPos)
+            # update weight dist
+            weight_dist[particle] += weight
+        
+        # check if all particles have zero weight
+        if weight_dist.total() == 0:
+            self.initializeUniformly(gameState)
+            return
+        
+        # normalize
+        weight_dist.normalize()
+        
+        # resample particles from the weighted distr
+        new_particles = []
+        for _ in range(self.numParticles):
+            # Sample a position from the weighted distribution
+            sampled_pos = weight_dist.sample()
+            # Add the sampled position to the new particle list
+            new_particles.append(sampled_pos)
+        
+        # Update self.particles with the new resampled particles
+        self.particles = new_particles
     
     ########### ########### ###########
     ########### QUESTION 11 ###########
@@ -705,9 +747,17 @@ class ParticleFilter(InferenceModule):
         Sample each particle's next state based on its current state and the
         gameState.
         """
-        "*** YOUR CODE HERE ***"
-        raiseNotDefined()
-        "*** END YOUR CODE HERE ***"
+        # initialize for upadted particles
+        new_particles = []
+        
+        for old_pos in self.particles:
+            # transition probability distr for particle pos
+            new_pos_dist = self.getPositionDistribution(gameState, old_pos)
+            # new pos from the trans distr + add it to list
+            new_pos = new_pos_dist.sample()
+            new_particles.append(new_pos)
+        
+        self.particles = new_particles
 
 
 
@@ -739,9 +789,18 @@ class JointParticleFilter(ParticleFilter):
         uniform prior.
         """
         self.particles = []
-        "*** YOUR CODE HERE ***"
-        raiseNotDefined()
-        "*** END YOUR CODE HERE ***"
+    
+        # get num ghosts
+        num_ghosts = self.numGhosts
+        # generate all combos for ghost pos
+        all_combos = list(itertools.product(self.legalPositions, repeat=num_ghosts))
+        random.shuffle(all_combos)
+        
+        for i in range(self.numParticles):
+            # go through combos 
+            comb_index = i % len(all_combos)
+            self.particles.append(all_combos[comb_index])
+       
 
     def addGhostAgent(self, agent):
         """
@@ -775,9 +834,35 @@ class JointParticleFilter(ParticleFilter):
         be reinitialized by calling initializeUniformly. The total method of
         the DiscreteDistribution may be useful.
         """
-        "*** YOUR CODE HERE ***"
-        raiseNotDefined()
-        "*** END YOUR CODE HERE ***"
+        # intialize pacman pos + weighted distr
+        pacman_pos = gameState.getPacmanPosition()
+        weight_dist = DiscreteDistribution()
+        
+        for particle in self.particles:
+            weight = 1.0
+            # iterate over ghost and its observation
+            for i in range(self.numGhosts):
+                ghost_pos = particle[i]
+                jail_pos = self.getJailPosition(i)
+                # get prob
+                prob = self.getObservationProb(observation[i], pacman_pos, ghost_pos, jail_pos)
+                weight *= prob
+                
+            weight_dist[particle] += weight
+        
+        # check if particles have zero weight
+        if weight_dist.total() == 0:
+            self.initializeUniformly(gameState)
+            return
+        # normalize
+        weight_dist.normalize()
+        
+        new_particles = []
+        for _ in range(self.numParticles):
+            sampled_particle = weight_dist.sample()
+            new_particles.append(sampled_particle)
+    
+        self.particles = new_particles
 
     ########### ########### ###########
     ########### QUESTION 14 ###########
@@ -793,9 +878,10 @@ class JointParticleFilter(ParticleFilter):
             newParticle = list(oldParticle)  # A list of ghost positions
 
             # now loop through and update each entry in newParticle...
-            "*** YOUR CODE HERE ***"
-            raiseNotDefined()
-            """*** END YOUR CODE HERE ***"""
+            for i in range(self.numGhosts):
+                newPosDist = self.getPositionDistribution(gameState, oldParticle, i, self.ghostAgents[i])
+                new_pos = newPosDist.sample()
+                newParticle[i] = new_pos
             newParticles.append(tuple(newParticle))
         self.particles = newParticles
 
